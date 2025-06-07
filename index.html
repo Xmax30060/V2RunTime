@@ -1,1 +1,586 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="manifest.json">    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RunTime Mobile</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <h1>RunTime</h1>
+            <div class="user-info">
+                <div class="user-avatar" id="userAvatar">U</div>
+                <div>
+                    <div id="userName">Utilisateur</div>
+                    <div style="font-size: 0.8rem; opacity: 0.8;" id="currentDate"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <!-- Navigation Tabs -->
+    <div class="nav-tabs">
+        <button class="nav-tab active" data-section="planning">📅 Planning</button>
+        <button class="nav-tab" data-section="menage">🏠 Ménage</button>
+    </div>
+
+    <div class="container">
+        <!-- Planning Section -->
+        <div class="content-section active" id="planning">
+            <div class="filter-controls">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>Date:</label>
+                        <input type="date" id="planningDate">
+                    </div>
+                    <div class="filter-group">
+                        <label>Vue:</label>
+                        <select id="planningView">
+                            <option value="day">Jour</option>
+                            <option value="week">Semaine</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="scheduleContainer">
+                <div class="schedule-grid" id="scheduleGrid"></div>
+            </div>
+        </div>
+
+        <!-- Ménage Section -->
+        <div class="content-section" id="menage">
+            <div class="filter-controls">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label>Pièce:</label>
+                        <select id="roomFilter">
+                            <option value="all">Toutes</option>
+                            <option value="cuisine">Cuisine</option>
+                            <option value="salon">Salon</option>
+                            <option value="chambre">Chambre</option>
+                            <option value="salle_de_bain">Salle de bain</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Fréquence:</label>
+                        <select id="frequencyFilter">
+                            <option value="all">Toutes</option>
+                            <option value="daily">Quotidien</option>
+                            <option value="weekly">Hebdomadaire</option>
+                            <option value="monthly">Mensuel</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="tasks-container" id="menageContainer">
+                <div class="empty-state" id="emptyStateMenage">
+                    <h3>Aucune tâche ménagère</h3>
+                    <p>Appuyez sur le bouton + pour ajouter une tâche ménagère</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Button -->
+    <button class="add-btn" id="addBtn">+</button>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Nouvelle Tâche</h2>
+            <form id="taskForm">
+                <div class="form-group">
+                    <label for="taskTitle">Titre de la tâche</label>
+                    <input type="text" id="taskTitle" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="taskTime">Heure</label>
+                    <input type="time" id="taskTime" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="taskDate">Date</label>
+                    <input type="date" id="taskDate" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="taskRoom">Pièce</label>
+                    <select id="taskRoom">
+                        <option value="cuisine">Cuisine</option>
+                        <option value="salon">Salon</option>
+                        <option value="chambre">Chambre</option>
+                        <option value="salle_de_bain">Salle de bain</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="taskFrequency">Fréquence</label>
+                    <select id="taskFrequency">
+                        <option value="once">Une fois</option>
+                        <option value="daily">Quotidien</option>
+                        <option value="weekly">Hebdomadaire</option>
+                        <option value="monthly">Mensuel</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="taskReminder">
+                        <label for="taskReminder">Activer le rappel</label>
+                    </div>
+                </div>
+                
+                <input type="hidden" id="taskId">
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Annuler</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Ajouter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        class MobileTaskManager {
+            constructor() {
+                this.tasks = [];
+                this.userPreferences = {
+                    currentSection: 'planning',
+                    selectedDate: new Date().toISOString().split('T')[0],
+                    roomFilter: 'all',
+                    frequencyFilter: 'all',
+                    userName: 'Utilisateur',
+                    planningView: 'day'
+                };
+                
+                this.currentDate = new Date().toISOString().split('T')[0];
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.updateCurrentDate();
+                this.restoreUserState();
+                this.updateAllViews();
+                this.loadSampleData();
+            }
+
+            setupEventListeners() {
+                // Navigation
+                document.querySelectorAll('.nav-tab').forEach(tab => {
+                    tab.addEventListener('click', (e) => {
+                        this.switchSection(e.target.dataset.section);
+                    });
+                });
+
+                // Add button - Correction principale
+                const addBtn = document.getElementById('addBtn');
+                addBtn.addEventListener('click', () => {
+                    console.log('Bouton + cliqué');
+                    this.showModal();
+                });
+                
+                // Modal
+                document.getElementById('cancelBtn').addEventListener('click', () => this.hideModal());
+                document.getElementById('taskForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleSubmit(e);
+                });
+                
+                document.getElementById('modal').addEventListener('click', (e) => {
+                    if (e.target.id === 'modal') this.hideModal();
+                });
+
+                // Filters
+                document.getElementById('roomFilter').addEventListener('change', (e) => {
+                    this.userPreferences.roomFilter = e.target.value;
+                    this.updateMenageList();
+                });
+                
+                document.getElementById('frequencyFilter').addEventListener('change', (e) => {
+                    this.userPreferences.frequencyFilter = e.target.value;
+                    this.updateMenageList();
+                });
+                
+                document.getElementById('planningDate').addEventListener('change', (e) => {
+                    this.userPreferences.selectedDate = e.target.value;
+                    this.generateSchedule();
+                });
+
+                document.getElementById('planningView').addEventListener('change', (e) => {
+                    this.userPreferences.planningView = e.target.value;
+                    this.generateSchedule();
+                });
+
+                // Set default values
+                document.getElementById('taskDate').value = this.currentDate;
+                document.getElementById('planningDate').value = this.currentDate;
+            }
+
+            switchSection(section) {
+                // Update navigation
+                document.querySelectorAll('.nav-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.querySelector(`[data-section="${section}"]`).classList.add('active');
+
+                // Update content
+                document.querySelectorAll('.content-section').forEach(sec => {
+                    sec.classList.remove('active');
+                });
+                document.getElementById(section).classList.add('active');
+
+                this.userPreferences.currentSection = section;
+                this.updateCurrentView();
+            }
+
+            showModal(task = null) {
+                const modal = document.getElementById('modal');
+                const title = document.getElementById('modalTitle');
+                const submitBtn = document.getElementById('submitBtn');
+                
+                if (task) {
+                    title.textContent = 'Modifier la tâche';
+                    submitBtn.textContent = 'Modifier';
+                    this.fillForm(task);
+                } else {
+                    title.textContent = 'Nouvelle tâche';
+                    submitBtn.textContent = 'Ajouter';
+                    this.resetForm();
+                }
+
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
+            }
+
+            hideModal() {
+                document.getElementById('modal').style.display = 'none';
+                document.body.style.overflow = 'auto';
+                this.resetForm();
+            }
+
+            fillForm(task) {
+                document.getElementById('taskId').value = task.id || '';
+                document.getElementById('taskTitle').value = task.title || '';
+                document.getElementById('taskTime').value = task.time || '';
+                document.getElementById('taskDate').value = task.date || '';
+                document.getElementById('taskRoom').value = task.room || 'cuisine';
+                document.getElementById('taskFrequency').value = task.frequency || 'once';
+                document.getElementById('taskReminder').checked = task.reminder || false;
+            }
+
+            resetForm() {
+                document.getElementById('taskForm').reset();
+                document.getElementById('taskDate').value = this.userPreferences.selectedDate;
+                document.getElementById('taskId').value = '';
+            }
+
+            handleSubmit(e) {
+                e.preventDefault();
+                
+                const taskId = document.getElementById('taskId').value;
+                const task = {
+                    id: taskId || Date.now().toString(),
+                    title: document.getElementById('taskTitle').value,
+                    time: document.getElementById('taskTime').value,
+                    date: document.getElementById('taskDate').value,
+                    room: document.getElementById('taskRoom').value,
+                    frequency: document.getElementById('taskFrequency').value,
+                    reminder: document.getElementById('taskReminder').checked,
+                    completed: false,
+                    createdAt: new Date().toISOString()
+                };
+
+                if (taskId) {
+                    this.updateTask(task);
+                } else {
+                    this.addTask(task);
+                }
+                
+                this.hideModal();
+            }
+
+            addTask(task) {
+                this.tasks.push(task);
+                this.updateAllViews();
+                this.showNotification('Tâche ajoutée avec succès!');
+                console.log('Tâche ajoutée:', task);
+            }
+
+            updateTask(updatedTask) {
+                const index = this.tasks.findIndex(t => t.id === updatedTask.id);
+                if (index !== -1) {
+                    this.tasks[index] = { ...this.tasks[index], ...updatedTask };
+                    this.updateAllViews();
+                    this.showNotification('Tâche modifiée avec succès!');
+                }
+            }
+
+            toggleTask(taskId) {
+                const task = this.tasks.find(t => t.id === taskId);
+                if (task) {
+                    task.completed = !task.completed;
+                    this.updateAllViews();
+                    
+                    const message = task.completed ? 'Tâche terminée!' : 'Tâche réactivée!';
+                    this.showNotification(message);
+                }
+            }
+
+            deleteTask(taskId) {
+                if (confirm("Êtes-vous sûr de vouloir supprimer cette tâche ?")) {
+                    this.tasks = this.tasks.filter(t => t.id !== taskId);
+                    this.updateAllViews();
+                    this.showNotification("Tâche supprimée !");
+                }
+            }
+
+            editTask(taskId) {
+                const task = this.tasks.find(t => t.id === taskId);
+                if (task) {
+                    this.showModal(task);
+                }
+            }
+
+            restoreUserState() {
+                const prefs = this.userPreferences;
+                
+                document.getElementById('userName').textContent = prefs.userName;
+                document.getElementById('userAvatar').textContent = prefs.userName.charAt(0).toUpperCase();
+                
+                document.getElementById('roomFilter').value = prefs.roomFilter;
+                document.getElementById('frequencyFilter').value = prefs.frequencyFilter;
+                document.getElementById('planningDate').value = prefs.selectedDate;
+                document.getElementById('planningView').value = prefs.planningView;
+                
+                this.switchSection(prefs.currentSection);
+            }
+
+            updateCurrentDate() {
+                const options = { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                };
+                document.getElementById('currentDate').textContent = 
+                    new Date().toLocaleDateString('fr-FR', options);
+            }
+
+            updateAllViews() {
+                this.generateSchedule();
+                this.updateMenageList();
+                this.updateCurrentView();
+            }
+
+            updateCurrentView() {
+                const currentSection = this.userPreferences.currentSection;
+                if (currentSection === 'planning') {
+                    this.generateSchedule();
+                } else if (currentSection === 'menage') {
+                    this.updateMenageList();
+                }
+            }
+
+            generateSchedule() {
+                const container = document.getElementById('scheduleGrid');
+                const selectedDate = this.userPreferences.selectedDate;
+                
+                container.innerHTML = '';
+                
+                for (let hour = 6; hour <= 23; hour++) {
+                    const timeSlot = document.createElement('div');
+                    timeSlot.className = 'time-slot';
+                    timeSlot.textContent = `${hour.toString().padStart(2, '0')}:00`;
+                    container.appendChild(timeSlot);
+                    
+                    const scheduleSlot = document.createElement('div');
+                    scheduleSlot.className = 'schedule-slot';
+                    scheduleSlot.dataset.hour = hour;
+                    
+                    const tasksForSlot = this.tasks.filter(task => {
+                        if (task.date !== selectedDate) return false;
+                        const taskHour = parseInt(task.time.split(':')[0]);
+                        return taskHour === hour;
+                    });
+                    
+                    tasksForSlot.forEach(task => {
+                        const taskElement = document.createElement('div');
+                        taskElement.className = `schedule-task ${task.completed ? 'completed' : ''}`;
+                        taskElement.textContent = `${task.time} - ${task.title}`;
+                        taskElement.onclick = (e) => {
+                            e.stopPropagation();
+                            this.editTask(task.id);
+                        };
+                        scheduleSlot.appendChild(taskElement);
+                    });
+                    
+                    scheduleSlot.onclick = () => {
+                        document.getElementById('taskTime').value = `${hour.toString().padStart(2, '0')}:00`;
+                        document.getElementById('taskDate').value = selectedDate;
+                        this.showModal();
+                    };
+                    
+                    container.appendChild(scheduleSlot);
+                }
+            }
+
+            updateMenageList() {
+                const container = document.getElementById('menageContainer');
+                const emptyState = document.getElementById('emptyStateMenage');
+                const roomFilter = this.userPreferences.roomFilter;
+                const frequencyFilter = this.userPreferences.frequencyFilter;
+                
+                let filteredTasks = [...this.tasks];
+                
+                if (roomFilter !== 'all') {
+                    filteredTasks = filteredTasks.filter(task => task.room === roomFilter);
+                }
+                
+                if (frequencyFilter !== 'all') {
+                    filteredTasks = filteredTasks.filter(task => task.frequency === frequencyFilter);
+                }
+                
+                filteredTasks.sort((a, b) => {
+                    if (a.date !== b.date) return a.date.localeCompare(b.date);
+                    return a.time.localeCompare(b.time);
+                });
+                
+                if (filteredTasks.length === 0) {
+                    emptyState.style.display = 'block';
+                    container.innerHTML = '';
+                    container.appendChild(emptyState);
+                    return;
+                }
+
+                emptyState.style.display = 'none';
+                container.innerHTML = '';
+                
+                filteredTasks.forEach(task => {
+                    const taskElement = this.createTaskElement(task);
+                    container.appendChild(taskElement);
+                });
+            }
+
+            createTaskElement(task) {
+                const taskCard = document.createElement('div');
+                taskCard.className = `task-card ${task.completed ? 'completed' : ''}`;
+                
+                const frequencyLabels = {
+                    once: 'Une fois',
+                    daily: 'Quotidien',
+                    weekly: 'Hebdomadaire',
+                    monthly: 'Mensuel'
+                };
+
+                const roomLabels = {
+                    cuisine: '🍳 Cuisine',
+                    salon: '🛋️ Salon',
+                    chambre: '🛏️ Chambre',
+                    salle_de_bain: '🚿 Salle de bain'
+                };
+
+                const formatDate = (dateStr) => {
+                    const date = new Date(dateStr);
+                    const today = new Date();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(today.getDate() + 1);
+                    
+                    if (dateStr === today.toISOString().split('T')[0]) return "Aujourd'hui";
+                    if (dateStr === tomorrow.toISOString().split('T')[0]) return "Demain";
+                    return date.toLocaleDateString('fr-FR');
+                };
+
+                taskCard.innerHTML = `
+                    <div class="task-header">
+                        <div class="task-title">${task.title}</div>
+                        <div class="task-time">${task.time}</div>
+                    </div>
+                    <div class="task-details">
+                        <div class="task-detail">📅 ${formatDate(task.date)}</div>
+                        <div class="task-detail">${roomLabels[task.room]}</div>
+                        <div class="task-detail">🔄 ${frequencyLabels[task.frequency]}</div>
+                        <div class="task-detail">${task.reminder ? '⏰ Rappel' : '🔕 Pas de rappel'}</div>
+                    </div>
+                    <div class="task-actions">
+                        <div class="task-checkbox ${task.completed ? 'checked' : ''}" onclick="taskManager.toggleTask('${task.id}')">
+                            ${task.completed ? '✓' : ''}
+                        </div>
+                        <div class="task-buttons">
+                            <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;" onclick="taskManager.editTask('${task.id}')">Modifier</button>
+                            <button class="delete-btn" onclick="taskManager.deleteTask('${task.id}')">🗑️</button>
+                        </div>
+                    </div>
+                `;
+
+                return taskCard;
+            }
+
+            showNotification(message) {
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 100px;
+                    right: 20px;
+                    background: #4caf50;
+                    color: white;
+                    padding: 12px 20px;
+                    border-radius: 8px;
+                    z-index: 1000;
+                    font-size: 0.9rem;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                `;
+                notification.textContent = message;
+                
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 3000);
+            }
+
+            loadSampleData() {
+                if (this.tasks.length === 0) {
+                    const sampleTasks = [
+                        {
+                            id: 'sample1',
+                            title: 'Faire la vaisselle',
+                            time: '08:00',
+                            date: new Date().toISOString().split('T')[0],
+                            room: 'cuisine',
+                            frequency: 'daily',
+                            reminder: true,
+                            completed: false,
+                            createdAt: new Date().toISOString()
+                        },
+                        {
+                            id: 'sample2',
+                            title: 'Passer l\'aspirateur',
+                            time: '14:00',
+                            date: new Date().toISOString().split('T')[0],
+                            room: 'salon',
+                            frequency: 'weekly',
+                            reminder: true,
+                            completed: false,
+                            createdAt: new Date().toISOString()
+                        }
+                    ];
+                    
+                    this.tasks = sampleTasks;
+                    this.updateAllViews();
+                }
+            }
+        }
+
+        // Initialize the app
+        const taskManager = new MobileTaskManager();
+    </script>
+</body>
+</html>
